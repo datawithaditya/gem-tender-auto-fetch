@@ -1,0 +1,14 @@
+relevant_tenders.csv
+relevant_bids.xlsx
+all_bids_raw.csv
+all_bids_checkpoint*.csv
+bid_pdfs/
+bid_documents/
+pipeline_state.json
+debug_response.html
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+.venv/

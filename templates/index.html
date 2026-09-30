@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeM Tender Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f4f8;
+    color: #1a202c;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #1e3a8a;
+    color: white;
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header-left h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-left p  { font-size: 13px; opacity: 0.7; margin-top: 2px; }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; }
+  .badge-idle    { background: rgba(255,255,255,0.15); color: #cbd5e1; }
+  .badge-idle::before    { background: #94a3b8; }
+  .badge-running { background: rgba(251,191,36,0.2); color: #fbbf24; }
+  .badge-running::before { background: #fbbf24; animation: pulse 1s infinite; }
+  .badge-done    { background: rgba(52,211,153,0.2); color: #34d399; }
+  .badge-done::before    { background: #34d399; }
+  .badge-error   { background: rgba(248,113,113,0.2); color: #f87171; }
+  .badge-error::before   { background: #f87171; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Layout ── */
+  .container { max-width: 1440px; margin: 0 auto; padding: 24px; }
+
+  .card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+  }
+
+  /* ── Controls ── */
+  .controls-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .btn {
+    padding: 9px 20px; border: none; border-radius: 7px;
+    cursor: pointer; font-size: 14px; font-weight: 500;
+    transition: all 0.15s ease; white-space: nowrap; text-decoration: none;
+    display: inline-flex; align-items: center;
+  }
+  .btn-primary { background: #1e3a8a; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #1e40af; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30,58,138,0.3); }
+  .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-outline {
+    background: white; color: #374151;
+    border: 1px solid #d1d5db;
+  }
+  .btn-outline:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+  .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-indigo { background: #4f46e5; color: white; }
+  .btn-indigo:hover:not(:disabled) { background: #4338ca; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+  .btn-indigo:disabled { background: #c7d2fe; color: #3730a3; cursor: not-allowed; }
+  .btn-download { background: #065f46; color: white; }
+  .btn-download:hover { background: #047857; transform: translateY(-1px); }
+
+  .last-run { font-size: 12px; color: #94a3b8; margin-left: auto; }
+
+  /* ── Run summary ── */
+  .run-summary {
+    margin-top: 16px; padding: 16px;
+    background: #f8fafc; border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+  .summary-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .summary-title { font-size: 13px; font-weight: 600; color: #374151; }
+  .summary-time  { font-size: 12px; color: #94a3b8; }
+  .summary-stats {
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .sum-stat {
+    flex: 1; min-width: 90px;
+    background: white; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 10px 14px; text-align: center;
+  }
+  .sum-stat strong { display: block; font-size: 20px; color: #1e3a8a; margin-bottom: 2px; }
+  .sum-stat span   { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  /* ── Progress ── */
+  .progress-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+  .progress-bar { background: #e2e8f0; border-radius: 6px; height: 8px; overflow: hidden; margin: 10px 0; }
+  .progress-fill {
+    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+    height: 100%; border-radius: 6px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .progress-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #64748b;
+  }
+  .current-kw {
+    font-style: italic; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 60%;
+  }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .stat-chip {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 8px 14px;
+    font-size: 13px; color: #475569;
+  }
+  .stat-chip strong { color: #1e3a8a; font-size: 18px; display: block; }
+
+  /* ── Search ── */
+  .search-row {
+    display: flex; gap: 10px; align-items: center; margin-bottom: 14px;
+  }
+  .search-input {
+    flex: 1; padding: 9px 14px;
+    border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 14px; color: #1a202c;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { outline: none; border-color: #1e3a8a; box-shadow: 0 0 0 3px rgba(30,58,138,0.1); }
+  .result-count { font-size: 13px; color: #94a3b8; white-space: nowrap; }
+
+  /* ── Table ── */
+  .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid #e2e8f0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 1; }
+  th {
+    background: #f8fafc; padding: 11px 14px;
+    text-align: left; font-weight: 600; color: #374151;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  th:hover { background: #f1f5f9; }
+  th.sort-asc::after  { content: ' ↑'; color: #1e3a8a; }
+  th.sort-desc::after { content: ' ↓'; color: #1e3a8a; }
+  td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+  td a { color: #1e3a8a; text-decoration: none; font-weight: 500; }
+  td a:hover { text-decoration: underline; }
+  .title-cell { max-width: 340px; }
+  .keyword-chip {
+    display: inline-block; font-size: 11px;
+    background: #eff6ff; color: #1e40af;
+    border: 1px solid #bfdbfe;
+    padding: 2px 8px; border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .date-cell { white-space: nowrap; color: #475569; }
+  .empty-state {
+    text-align: center; padding: 60px 20px;
+    color: #94a3b8; font-size: 14px;
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+
+  /* ── Working Bid card ── */
+  .card-title {
+    font-size: 14px; font-weight: 700; color: #374151;
+    margin-bottom: 14px; letter-spacing: -0.2px;
+  }
+  .analyze-controls {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  select.date-select {
+    padding: 9px 14px; border: 1px solid #d1d5db; border-radius: 7px;
+    font-size: 14px; color: #1a202c; background: white;
+    cursor: pointer; min-width: 160px;
+  }
+  select.date-select:focus { outline: none; border-color: #1e3a8a; box-shadow: 0 0 0 3px rgba(30,58,138,0.1); }
+  .analyze-progress {
+    margin-top: 14px; padding: 12px 14px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+  .analyze-progress .progress-bar { margin: 8px 0; }
+  .analyze-bid-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <h1>GeM Tender Monitor</h1>
+    <p>Welding Electrodes &amp; Consumables · D&amp;H Secheron · bidplus.gem.gov.in</p>
+  </div>
+  <span id="statusBadge" class="badge badge-idle">Idle</span>
+</header>
+
+<div class="container">
+
+  <!-- Working Bid card (primary daily function) -->
+  <div class="card">
+    <div class="card-title">Working Bid</div>
+    <div class="analyze-controls">
+      <select id="dateSelect" class="date-select">
+        <option value="">— select end date —</option>
+      </select>
+      <button id="getBidBtn" class="btn btn-indigo" onclick="startGetBid()" disabled>Get Bid</button>
+      <span id="analyzeInfo" class="result-count"></span>
+    </div>
+
+    <!-- Get Bid progress -->
+    <div id="getBidProgress" class="analyze-progress hidden" style="border-color:#c7d2fe;">
+      <div class="progress-meta">
+        <span id="getBidCounter">0 / 0 bids</span>
+        <span id="getBidWorkers" style="font-size:12px;color:#94a3b8;"></span>
+        <span id="getBidStatus" class="current-kw"></span>
+      </div>
+      <div class="progress-bar">
+        <div id="getBidFill" class="progress-fill" style="background:linear-gradient(90deg,#4f46e5,#818cf8)"></div>
+      </div>
+      <div class="analyze-bid-label" id="getBidLabel"></div>
+    </div>
+
+    <!-- Download link (shown when done) -->
+    <div id="getBidResult" class="hidden" style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:13px;color:#374151;">Excel ready:</span>
+      <a id="getBidDownload" href="/get-bid/download" class="btn btn-download" style="font-size:13px;padding:7px 16px;">
+        ⬇ Download Excel
+      </a>
+      <span id="getBidFolder" style="font-size:12px;color:#94a3b8;"></span>
+    </div>
+  </div>
+
+  <!-- Controls card -->
+  <div class="card">
+    <div class="controls-row">
+      <button id="syncBtn" class="btn btn-primary" onclick="startSync()">⚡ Sync New Bids</button>
+      <a id="downloadBtn" href="/download" class="btn btn-outline hidden">⬇ Download relevant_bids.xlsx</a>
+      <span id="lastRun" class="last-run"></span>
+    </div>
+
+    <!-- Progress (shown while syncing) -->
+    <div id="progressSection" class="progress-section hidden">
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <div class="progress-meta">
+        <span id="progressCounter"></span>
+        <span id="currentKw" class="current-kw"></span>
+      </div>
+    </div>
+
+    <!-- Run summary (shown after each sync) -->
+    <div id="runSummary" class="run-summary hidden">
+      <div class="summary-header">
+        <span id="summaryTitle" class="summary-title"></span>
+        <span id="summaryTime" class="summary-time"></span>
+        <span id="summaryDuration" style="font-size:12px;color:#94a3b8;"></span>
+      </div>
+      <div class="summary-stats">
+        <div class="sum-stat"><strong id="sumPages">—</strong><span>Pages Scanned</span></div>
+        <div class="sum-stat"><strong id="sumRaw">—</strong><span>New Bids Found</span></div>
+        <div class="sum-stat"><strong id="sumNew">—</strong><span>Added to DB</span></div>
+        <div class="sum-stat"><strong id="sumRelevant">—</strong><span>Keyword Matches</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results card -->
+  <div class="card">
+    <div id="statsRow" class="stats-row hidden">
+      <div class="stat-chip"><strong id="statTotal">0</strong>Keyword Matches</div>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="searchBox" class="search-input"
+             placeholder="Filter by bid no, title, ministry, department, keyword…"
+             oninput="filterTable()">
+      <span id="resultCount" class="result-count"></span>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th onclick="sortTable(0)">Bid No</th>
+            <th onclick="sortTable(1)">Title / Items</th>
+            <th onclick="sortTable(2)">Ministry</th>
+            <th onclick="sortTable(3)">Department</th>
+            <th onclick="sortTable(4)">End Date</th>
+            <th onclick="sortTable(5)">Keyword</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="6">
+            <div class="empty-state">
+              <div class="icon">📋</div>
+              Run Sync to load relevant tenders from GeM
+            </div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  let allResults = [];
+  let filteredResults = [];
+  let eventSource = null;
+  let _runStartTime = null;
+
+  // ── On load ──────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    fetchResults();
+    fetchStatus();
+    refreshDateSelect();
+  });
+
+  function fetchStatus() {
+    fetch('/status').then(r => r.json()).then(s => {
+      if (s.running) { setRunning(); connectSSE(); }
+      else if (s.last_run) {
+        setDone(s.result_count);
+        setLastRun(s.last_run);
+        if (s.last_summary) showSummary(s.last_summary);
+      }
+      if (s.error) setError(s.error);
+    });
+  }
+
+  function fetchResults() {
+    fetch('/results').then(r => r.json()).then(data => {
+      if (data.results && data.results.length > 0) {
+        allResults = data.results;
+        filteredResults = allResults;
+        renderTable(filteredResults);
+        document.getElementById('downloadBtn').classList.remove('hidden');
+        if (data.last_run) setLastRun(data.last_run);
+        document.getElementById('statsRow').classList.remove('hidden');
+        document.getElementById('statTotal').textContent = allResults.length.toLocaleString();
+        refreshDateSelect();
+      }
+    });
+  }
+
+  // ── Sync ─────────────────────────────────────────────────────
+  function startSync() {
+    fetch('/sync', { method: 'POST' })
+      .then(r => {
+        if (r.status === 409) { alert('Sync is already running.'); return null; }
+        return r.json();
+      })
+      .then(d => {
+        if (d && d.status === 'started') {
+          _resetProgressBar();
+          setRunning();
+          connectSSE();
+        }
+      });
+  }
+
+  // ── SSE ──────────────────────────────────────────────────────
+  function connectSSE() {
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/progress');
+
+    eventSource.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+
+      if (msg.type === 'start') {
+        document.getElementById('progressSection').classList.remove('hidden');
+      }
+
+      if (msg.type === 'progress') {
+        // Sync mode has no fixed total — animated scanning bar
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('progressFill').style.opacity = '0.5';
+        document.getElementById('progressCounter').textContent = msg.keyword;
+        document.getElementById('currentKw').textContent = '';
+      }
+
+      if (msg.type === 'done') {
+        eventSource.close();
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('progressFill').style.opacity = '1';
+        document.getElementById('progressCounter').textContent = 'Complete';
+        document.getElementById('currentKw').textContent = '';
+        showSummary(msg);
+        setTimeout(() => {
+          fetchResults();
+          setDone(msg.relevant);
+          setLastRun(new Date().toISOString());
+        }, 600);
+      }
+
+      if (msg.type === 'error') {
+        eventSource.close();
+        setError(msg.msg);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      pollStatus();
+    };
+  }
+
+  // Polling fallback
+  function pollStatus() {
+    const iv = setInterval(() => {
+      fetch('/status').then(r => r.json()).then(s => {
+        if (s.running) {
+          document.getElementById('progressCounter').textContent = s.current_kw;
+        } else {
+          clearInterval(iv);
+          if (s.error) setError(s.error);
+          else {
+            fetchResults();
+            setDone(s.result_count);
+            setLastRun(s.last_run);
+            if (s.last_summary) showSummary(s.last_summary);
+          }
+        }
+      });
+    }, 3000);
+  }
+
+  // ── Summary ───────────────────────────────────────────────────
+  function showSummary(s) {
+    document.getElementById('summaryTitle').textContent = 'Sync Summary';
+    document.getElementById('summaryTime').textContent =
+      s.timestamp ? new Date(s.timestamp).toLocaleString() : '';
+    if (_runStartTime) {
+      const elapsed = Math.round((Date.now() - _runStartTime) / 1000);
+      document.getElementById('summaryDuration').textContent = 'took ' + _fmtDuration(elapsed);
+      _runStartTime = null;
+    }
+    document.getElementById('sumPages').textContent    = (s.keywords_searched || 0).toLocaleString();
+    document.getElementById('sumRaw').textContent      = (s.raw || 0).toLocaleString();
+    document.getElementById('sumNew').textContent      = (s.deduped || 0).toLocaleString();
+    document.getElementById('sumRelevant').textContent = (s.relevant || 0).toLocaleString();
+    document.getElementById('runSummary').classList.remove('hidden');
+  }
+
+  // ── UI state helpers ─────────────────────────────────────────
+  function _resetProgressBar() {
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressFill').style.opacity = '1';
+    document.getElementById('progressCounter').textContent = '';
+    document.getElementById('currentKw').textContent = '';
+    _runStartTime = Date.now();
+  }
+
+  function _fmtDuration(secs) {
+    if (secs < 60) return secs + 's';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + 'm ' + (s > 0 ? s + 's' : '');
+  }
+
+  function setRunning() {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Syncing…';
+    setBadge('running', 'Syncing…');
+    document.getElementById('progressSection').classList.remove('hidden');
+    if (!_runStartTime) _resetProgressBar();
+  }
+
+  function setDone(count) {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = false;
+    btn.textContent = '⚡ Sync New Bids';
+    document.getElementById('progressFill').style.opacity = '1';
+    setBadge('done', (count || 0).toLocaleString() + ' matches');
+    document.getElementById('downloadBtn').classList.remove('hidden');
+    document.getElementById('statsRow').classList.remove('hidden');
+    document.getElementById('statTotal').textContent = (count || 0).toLocaleString();
+  }
+
+  function setError(msg) {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = false;
+    btn.textContent = '⚡ Sync New Bids';
+    setBadge('error', 'Error');
+    console.error('Sync error:', msg);
+    alert('Sync error: ' + msg);
+  }
+
+  function setBadge(type, text) {
+    const b = document.getElementById('statusBadge');
+    b.className = 'badge badge-' + type;
+    b.textContent = text;
+  }
+
+  function setLastRun(iso) {
+    document.getElementById('lastRun').textContent =
+      'Last sync: ' + new Date(iso).toLocaleString();
+  }
+
+  // ── Table ────────────────────────────────────────────────────
+  function renderTable(data) {
+    const tbody = document.getElementById('tableBody');
+    document.getElementById('resultCount').textContent =
+      data.length.toLocaleString() + ' tenders';
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="6">
+        <div class="empty-state"><div class="icon">🔍</div>No results match your filter</div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(r => {
+      const title = r.title || '';
+      const titleDisplay = title.length > 90 ? title.slice(0, 90) + '…' : title;
+      const endDate = (r.end_date || '').split(' ')[0] || '—';
+      return `<tr>
+        <td><a href="${escHtml(r.url)}" target="_blank" rel="noopener">${escHtml(r.bid_no)}</a></td>
+        <td class="title-cell" title="${escHtml(title)}">${escHtml(titleDisplay)}</td>
+        <td>${escHtml(r.ministry || '—')}</td>
+        <td>${escHtml(r.dept || '—')}</td>
+        <td class="date-cell">${escHtml(endDate)}</td>
+        <td><span class="keyword-chip" title="${escHtml(r.keyword)}">${escHtml(r.keyword)}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function filterTable() {
+    const q = document.getElementById('searchBox').value.toLowerCase().trim();
+    filteredResults = q
+      ? allResults.filter(r =>
+          (r.bid_no    || '').toLowerCase().includes(q) ||
+          (r.title     || '').toLowerCase().includes(q) ||
+          (r.ministry  || '').toLowerCase().includes(q) ||
+          (r.dept      || '').toLowerCase().includes(q) ||
+          (r.keyword   || '').toLowerCase().includes(q)
+        )
+      : allResults;
+    renderTable(filteredResults);
+  }
+
+  let currentSortCol = -1, currentSortAsc = true;
+  function sortTable(col) {
+    const ths = document.querySelectorAll('th');
+    ths.forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
+    if (currentSortCol === col) { currentSortAsc = !currentSortAsc; }
+    else { currentSortCol = col; currentSortAsc = true; }
+    ths[col].classList.add(currentSortAsc ? 'sort-asc' : 'sort-desc');
+    const keys = ['bid_no', 'title', 'ministry', 'dept', 'end_date', 'keyword'];
+    const key = keys[col];
+    filteredResults = [...filteredResults].sort((a, b) => {
+      const av = (a[key] || '').toLowerCase();
+      const bv = (b[key] || '').toLowerCase();
+      return currentSortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    renderTable(filteredResults);
+  }
+
+  function escHtml(s) {
+    return String(s || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Working Bid — date select ─────────────────────────────────
+  function refreshDateSelect() {
+    fetch('/analyze/dates').then(r => r.json()).then(data => {
+      const sel = document.getElementById('dateSelect');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— select end date —</option>';
+      (data.dates || []).forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d; opt.textContent = d;
+        if (d === prev) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      document.getElementById('getBidBtn').disabled = !sel.value;
+      const count = (data.dates || []).length;
+      document.getElementById('analyzeInfo').textContent =
+        count ? count + ' date' + (count > 1 ? 's' : '') + ' available' : '';
+    });
+  }
+
+  document.getElementById('dateSelect').addEventListener('change', function() {
+    document.getElementById('getBidBtn').disabled = !this.value;
+    document.getElementById('getBidResult').classList.add('hidden');
+  });
+
+  // ── Get Bid ──────────────────────────────────────────────────
+  let _getBidPoller = null;
+
+  function startGetBid() {
+    const date = document.getElementById('dateSelect').value;
+    if (!date) return;
+    fetch('/get-bid?date=' + encodeURIComponent(date), { method: 'POST' })
+      .then(r => {
+        if (r.status === 409) { alert('Get Bid already running.'); return null; }
+        return r.json();
+      })
+      .then(d => {
+        if (!d) return;
+        document.getElementById('getBidBtn').disabled = true;
+        document.getElementById('getBidProgress').classList.remove('hidden');
+        document.getElementById('getBidResult').classList.add('hidden');
+        document.getElementById('getBidFill').style.width = '0%';
+        document.getElementById('getBidCounter').textContent = '0 / ? bids';
+        document.getElementById('getBidWorkers').textContent = '';
+        document.getElementById('getBidStatus').textContent  = '';
+        document.getElementById('getBidLabel').textContent   = '';
+        _startGetBidPoller();
+      });
+  }
+
+  function _startGetBidPoller() {
+    if (_getBidPoller) clearInterval(_getBidPoller);
+    _getBidPoller = setInterval(() => {
+      fetch('/get-bid/status').then(r => r.json()).then(s => {
+        const total = s.total || 1;
+        const pct = Math.round((s.progress / total) * 100);
+        document.getElementById('getBidFill').style.width = Math.min(pct, 100) + '%';
+        document.getElementById('getBidCounter').textContent = s.progress + ' / ' + s.total + ' bids';
+        if (s.current_bid) {
+          document.getElementById('getBidLabel').textContent =
+            s.current_bid + ' · ' + (s.current_status || '');
+        }
+        if (s.workers) {
+          document.getElementById('getBidWorkers').textContent =
+            s.workers + ' worker' + (s.workers > 1 ? 's' : '');
+        }
+        if (!s.running) {
+          clearInterval(_getBidPoller);
+          document.getElementById('getBidFill').style.width = '100%';
+          document.getElementById('getBidBtn').disabled = false;
+          if (s.error) {
+            document.getElementById('getBidStatus').textContent = 'Error: ' + s.error;
+          } else {
+            document.getElementById('getBidStatus').textContent = 'Done';
+            document.getElementById('getBidResult').classList.remove('hidden');
+            document.getElementById('getBidResult').style.display = 'flex';
+            if (s.folder) {
+              document.getElementById('getBidFolder').textContent = 'Saved to: ' + s.folder;
+            }
+          }
+        }
+      });
+    }, 1500);
+  }
+</script>
+</body>
+</html>
